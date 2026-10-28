@@ -13,6 +13,7 @@ import com.lootingbagplus.ui.BagInputListener;
 import com.lootingbagplus.ui.BagWindowController;
 import com.lootingbagplus.ui.LootingBagOverlay;
 import com.lootingbagplus.ui.LootingBagPanel;
+import com.lootingbagplus.ui.SeedBoxOverlay;
 import java.awt.image.BufferedImage;
 import javax.inject.Inject;
 import javax.swing.SwingUtilities;
@@ -108,6 +109,12 @@ public class LootingBagPlusPlugin extends Plugin
 	@Inject
 	private LootingBagOverlay overlay;
 
+	@Inject
+	private SeedBoxState seedBoxState;
+
+	@Inject
+	private SeedBoxOverlay seedBoxOverlay;
+
 	private LootingBagPanel panel;
 	private NavigationButton navButton;
 
@@ -143,6 +150,15 @@ public class LootingBagPlusPlugin extends Plugin
 		}
 	};
 
+	private final HotkeyListener seedBoxHotkeyListener = new HotkeyListener(() -> config.seedBoxToggleKeybind())
+	{
+		@Override
+		public void hotkeyPressed()
+		{
+			configManager.setConfiguration(LootingBagPlusConfig.GROUP, LootingBagPlusConfig.KEY_SHOW_SEED_BOX, !config.showSeedBoxOverlay());
+		}
+	};
+
 	@Provides
 	LootingBagPlusConfig provideConfig(ConfigManager configManager)
 	{
@@ -167,7 +183,9 @@ public class LootingBagPlusPlugin extends Plugin
 		state.setListener(this::onSnapshotChanged);
 		overlayManager.add(overlay);
 		overlayManager.add(dragOverlay);
+		overlayManager.add(seedBoxOverlay);
 		keyManager.registerKeyListener(hotkeyListener);
+		keyManager.registerKeyListener(seedBoxHotkeyListener);
 
 		if (!inputRegistered)
 		{
@@ -181,7 +199,9 @@ public class LootingBagPlusPlugin extends Plugin
 			windowController.startUp();
 			if (client.getGameState() == GameState.LOGGED_IN)
 			{
-				state.onProfileChanged(configManager.getRSProfileKey());
+				String profileKey = configManager.getRSProfileKey();
+				state.onProfileChanged(profileKey);
+				seedBoxState.onProfileChanged(profileKey);
 			}
 			refreshPanel(state.getSnapshot());
 		});
@@ -193,7 +213,9 @@ public class LootingBagPlusPlugin extends Plugin
 		clientToolbar.removeNavigation(navButton);
 		overlayManager.remove(overlay);
 		overlayManager.remove(dragOverlay);
+		overlayManager.remove(seedBoxOverlay);
 		keyManager.unregisterKeyListener(hotkeyListener);
+		keyManager.unregisterKeyListener(seedBoxHotkeyListener);
 
 		if (inputRegistered)
 		{
@@ -210,6 +232,7 @@ public class LootingBagPlusPlugin extends Plugin
 		clientThread.invoke(() ->
 		{
 			state.flushNow();
+			seedBoxState.flushNow();
 			windowController.shutDown();
 		});
 	}
@@ -221,6 +244,7 @@ public class LootingBagPlusPlugin extends Plugin
 	{
 		windowController.tick();
 		state.tick();
+		seedBoxState.tick();
 	}
 
 	/** The precise "the grid was just rebuilt" signal: every firing wipes the positions we set. */
@@ -245,6 +269,10 @@ public class LootingBagPlusPlugin extends Plugin
 		{
 			state.updateContents(BagState.contentsOf(event.getItemContainer()));
 			windowController.markDirty();
+		}
+		else if (event.getContainerId() == InventoryID.SEED_BOX)
+		{
+			seedBoxState.updateContents(SeedBoxState.contentsOf(event.getItemContainer()));
 		}
 	}
 
@@ -277,6 +305,7 @@ public class LootingBagPlusPlugin extends Plugin
 		else if (event.getGameState() == GameState.LOGIN_SCREEN)
 		{
 			state.flushNow();
+			seedBoxState.flushNow();
 		}
 	}
 
@@ -320,7 +349,11 @@ public class LootingBagPlusPlugin extends Plugin
 	private void loadProfile()
 	{
 		String profileKey = configManager.getRSProfileKey();
-		clientThread.invoke(() -> state.onProfileChanged(profileKey));
+		clientThread.invoke(() ->
+		{
+			state.onProfileChanged(profileKey);
+			seedBoxState.onProfileChanged(profileKey);
+		});
 	}
 
 	/** Client thread: the bag or its arrangement changed. */

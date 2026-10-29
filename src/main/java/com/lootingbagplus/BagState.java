@@ -236,6 +236,21 @@ public class BagState
 	}
 
 	/**
+	 * Client thread. Adds items the player has just put in the bag, so the picture stays live
+	 * between checks. Ignored until the bag has been seen once, because a partial list would be
+	 * misleading; the next real container update replaces it.
+	 */
+	public void addItem(int itemId, int quantity, boolean stackable)
+	{
+		if (contents == null)
+		{
+			return;
+		}
+
+		updateContents(contents.withAdded(itemId, quantity, stackable));
+	}
+
+	/**
 	 * Client thread. Applies a drag between two display slots.
 	 *
 	 * @return true if the arrangement changed
@@ -319,7 +334,9 @@ public class BagState
 			long gePrice = itemManager.getItemPrice(id);
 			long haPrice = id == ItemID.COINS ? 1 : base.getHaPrice();
 
-			views[slot] = new SlotView(id, quantity, composition.getName(), composition.isStackable(), gePrice, haPrice);
+			ItemTag tag = ItemTag.get(itemManager.canonicalize(id));
+			views[slot] = new SlotView(id, quantity, composition.getName(), composition.isStackable(), gePrice, haPrice,
+				tag == null ? null : tag.getShortName(), tag == null ? null : tag.getMediumName());
 			geValue += gePrice * quantity;
 			haValue += haPrice * quantity;
 			used++;

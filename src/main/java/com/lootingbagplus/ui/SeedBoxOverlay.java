@@ -7,12 +7,12 @@
  */
 package com.lootingbagplus.ui;
 
+import com.lootingbagplus.LabelStyle;
 import com.lootingbagplus.LootingBagPlusConfig;
 import com.lootingbagplus.PriceType;
 import com.lootingbagplus.SeedBoxState;
 import com.lootingbagplus.model.BagGeometry;
 import com.lootingbagplus.model.BagSnapshot.SlotView;
-import com.lootingbagplus.model.ItemLabels;
 import com.lootingbagplus.model.StoredItemsSnapshot;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
@@ -55,10 +55,6 @@ public class SeedBoxOverlay extends OverlayPanel
 	/** The cells drawn this frame, in item order; {@code null} where only a placeholder was drawn. */
 	private final List<BagItemComponent> cells = new ArrayList<>();
 
-	/** Labels depend only on the snapshot, so they are worked out once per snapshot, not per frame. */
-	private StoredItemsSnapshot labelledSnapshot;
-	private String[] labels = new String[0];
-
 	@Inject
 	public SeedBoxOverlay(Client client, ItemManager itemManager, TooltipManager tooltipManager, SeedBoxState state,
 		LootingBagPlusConfig config)
@@ -91,7 +87,7 @@ public class SeedBoxOverlay extends OverlayPanel
 			return null;
 		}
 
-		String[] itemLabels = config.showItemLabels() ? labelsFor(snapshot) : null;
+		boolean showLabels = config.showItemLabels();
 
 		cells.clear();
 		List<SlotView> items = snapshot.getItems();
@@ -101,7 +97,7 @@ public class SeedBoxOverlay extends OverlayPanel
 			BufferedImage image = itemManager.getImage(view.getItemId(), view.getQuantity(), view.isStackable());
 			if (image != null)
 			{
-				BagItemComponent cell = new BagItemComponent(image, itemLabels == null ? null : itemLabels[i]);
+				BagItemComponent cell = new BagItemComponent(image, showLabels ? tagFor(view) : null);
 				cells.add(cell);
 				panelComponent.getChildren().add(cell);
 			}
@@ -117,20 +113,10 @@ public class SeedBoxOverlay extends OverlayPanel
 		return size;
 	}
 
-	private String[] labelsFor(StoredItemsSnapshot snapshot)
+	/** The Item Identification tag for an item in the chosen style, or {@code null} if it has none. */
+	private String tagFor(SlotView view)
 	{
-		if (snapshot != labelledSnapshot)
-		{
-			List<SlotView> items = snapshot.getItems();
-			String[] names = new String[items.size()];
-			for (int i = 0; i < names.length; i++)
-			{
-				names[i] = items.get(i).getName();
-			}
-			labels = ItemLabels.labelsFor(names);
-			labelledSnapshot = snapshot;
-		}
-		return labels;
+		return config.labelStyle() == LabelStyle.MEDIUM ? view.getMediumTag() : view.getShortTag();
 	}
 
 	/**

@@ -8,12 +8,12 @@
 package com.lootingbagplus.ui;
 
 import com.lootingbagplus.BagState;
+import com.lootingbagplus.LabelStyle;
 import com.lootingbagplus.LootingBagPlusConfig;
 import com.lootingbagplus.PriceType;
 import com.lootingbagplus.model.BagGeometry;
 import com.lootingbagplus.model.BagSnapshot;
 import com.lootingbagplus.model.BagSnapshot.SlotView;
-import com.lootingbagplus.model.ItemLabels;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
 import java.awt.Point;
@@ -56,10 +56,6 @@ public class LootingBagOverlay extends OverlayPanel
 	/** The cells drawn this frame by display slot, {@code null} where nothing item-like was drawn. */
 	private final BagItemComponent[] cells = new BagItemComponent[BagGeometry.SLOTS];
 
-	/** Labels depend only on the snapshot, so they are worked out once per snapshot, not per frame. */
-	private BagSnapshot labelledSnapshot;
-	private String[] labels = new String[BagGeometry.SLOTS];
-
 	@Inject
 	public LootingBagOverlay(Client client, ItemManager itemManager, TooltipManager tooltipManager, BagState state,
 		BagWindowController controller, LootingBagPlusConfig config)
@@ -98,7 +94,7 @@ public class LootingBagOverlay extends OverlayPanel
 			return null;
 		}
 
-		String[] slotLabels = config.showItemLabels() ? labelsFor(snapshot) : null;
+		boolean showLabels = config.showItemLabels();
 
 		for (int slot = 0; slot < BagGeometry.SLOTS; slot++)
 		{
@@ -110,7 +106,7 @@ public class LootingBagOverlay extends OverlayPanel
 				BufferedImage image = itemManager.getImage(view.getItemId(), view.getQuantity(), view.isStackable());
 				if (image != null)
 				{
-					BagItemComponent cell = new BagItemComponent(image, slotLabels == null ? null : slotLabels[slot]);
+					BagItemComponent cell = new BagItemComponent(image, showLabels ? tagFor(view) : null);
 					cells[slot] = cell;
 					panelComponent.getChildren().add(cell);
 					continue;
@@ -126,20 +122,10 @@ public class LootingBagOverlay extends OverlayPanel
 		return size;
 	}
 
-	private String[] labelsFor(BagSnapshot snapshot)
+	/** The Item Identification tag for an item in the chosen style, or {@code null} if it has none. */
+	private String tagFor(SlotView view)
 	{
-		if (snapshot != labelledSnapshot)
-		{
-			String[] names = new String[BagGeometry.SLOTS];
-			for (int slot = 0; slot < BagGeometry.SLOTS; slot++)
-			{
-				SlotView view = snapshot.slot(slot);
-				names[slot] = view == null ? null : view.getName();
-			}
-			labels = ItemLabels.labelsFor(names);
-			labelledSnapshot = snapshot;
-		}
-		return labels;
+		return config.labelStyle() == LabelStyle.MEDIUM ? view.getMediumTag() : view.getShortTag();
 	}
 
 	/**

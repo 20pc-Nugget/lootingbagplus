@@ -70,6 +70,81 @@ public final class StoredItems
 		return quantities[index];
 	}
 
+	/**
+	 * Returns a copy with {@code quantity} of an item added: merged into its stack if the item is
+	 * already here, otherwise appended. Used to keep the picture live between syncs.
+	 */
+	public StoredItems withAdded(int itemId, int quantity)
+	{
+		if (itemId <= 0 || quantity <= 0)
+		{
+			return this;
+		}
+
+		for (int i = 0; i < ids.length; i++)
+		{
+			if (ids[i] == itemId)
+			{
+				int[] newQuantities = quantities.clone();
+				newQuantities[i] = (int) Math.min((long) quantities[i] + quantity, Integer.MAX_VALUE);
+				return new StoredItems(ids.clone(), newQuantities);
+			}
+		}
+
+		if (ids.length >= MAX_ITEMS)
+		{
+			return this;
+		}
+
+		int[] newIds = Arrays.copyOf(ids, ids.length + 1);
+		int[] newQuantities = Arrays.copyOf(quantities, quantities.length + 1);
+		newIds[ids.length] = itemId;
+		newQuantities[ids.length] = quantity;
+		return new StoredItems(newIds, newQuantities);
+	}
+
+	/**
+	 * Returns a copy with {@code quantity} of an item taken out. A stack that reaches zero is
+	 * dropped. An item that is not here leaves everything unchanged.
+	 */
+	public StoredItems withRemoved(int itemId, int quantity)
+	{
+		if (itemId <= 0 || quantity <= 0)
+		{
+			return this;
+		}
+
+		for (int i = 0; i < ids.length; i++)
+		{
+			if (ids[i] != itemId)
+			{
+				continue;
+			}
+
+			int left = quantities[i] - quantity;
+			if (left > 0)
+			{
+				int[] newQuantities = quantities.clone();
+				newQuantities[i] = left;
+				return new StoredItems(ids.clone(), newQuantities);
+			}
+
+			int[] newIds = new int[ids.length - 1];
+			int[] newQuantities = new int[ids.length - 1];
+			for (int from = 0, to = 0; from < ids.length; from++)
+			{
+				if (from != i)
+				{
+					newIds[to] = ids[from];
+					newQuantities[to] = quantities[from];
+					to++;
+				}
+			}
+			return new StoredItems(newIds, newQuantities);
+		}
+		return this;
+	}
+
 	/** Text form for config: {@code id:quantity} pairs separated by commas, or {@code empty}. */
 	public String encode()
 	{

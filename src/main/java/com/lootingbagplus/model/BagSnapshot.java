@@ -68,8 +68,16 @@ public final class BagSnapshot
 		private final boolean stackable;
 		private final long gePrice;
 		private final long haPrice;
+		private final String shortTag;
+		private final String mediumTag;
 
-		public SlotView(int itemId, int quantity, String name, boolean stackable, long gePrice, long haPrice)
+		/**
+		 * @param shortTag  Item Identification's short tag for this item (for example "R"), or
+		 *                  {@code null} if it has none
+		 * @param mediumTag Item Identification's medium tag (for example "Ranarr"), or {@code null}
+		 */
+		public SlotView(int itemId, int quantity, String name, boolean stackable, long gePrice, long haPrice,
+			String shortTag, String mediumTag)
 		{
 			this.itemId = itemId;
 			this.quantity = quantity;
@@ -77,6 +85,8 @@ public final class BagSnapshot
 			this.stackable = stackable;
 			this.gePrice = gePrice;
 			this.haPrice = haPrice;
+			this.shortTag = shortTag;
+			this.mediumTag = mediumTag;
 		}
 
 		public int getItemId()
@@ -109,6 +119,18 @@ public final class BagSnapshot
 		public long getHaPrice()
 		{
 			return haPrice;
+		}
+
+		/** The short on-icon tag, or {@code null} for items that do not get one. */
+		public String getShortTag()
+		{
+			return shortTag;
+		}
+
+		/** The medium on-icon tag, or {@code null} for items that do not get one. */
+		public String getMediumTag()
+		{
+			return mediumTag;
 		}
 	}
 }

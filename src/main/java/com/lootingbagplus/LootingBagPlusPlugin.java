@@ -20,9 +20,13 @@ import javax.swing.SwingUtilities;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
+import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.ClientTick;
 import net.runelite.api.events.GameStateChanged;
+import net.runelite.api.events.GameTick;
 import net.runelite.api.events.ItemContainerChanged;
+import net.runelite.api.events.ItemDespawned;
+import net.runelite.api.events.MenuOptionClicked;
 import net.runelite.api.events.ScriptPostFired;
 import net.runelite.api.events.WidgetClosed;
 import net.runelite.api.events.WidgetLoaded;
@@ -30,6 +34,7 @@ import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.gameval.InventoryID;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.config.Keybind;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.events.RuneScapeProfileChanged;
@@ -115,6 +120,12 @@ public class LootingBagPlusPlugin extends Plugin
 	@Inject
 	private SeedBoxOverlay seedBoxOverlay;
 
+	@Inject
+	private LootingBagTracker lootingBagTracker;
+
+	@Inject
+	private SeedBoxTracker seedBoxTracker;
+
 	private LootingBagPanel panel;
 	private NavigationButton navButton;
 
@@ -141,16 +152,31 @@ public class LootingBagPlusPlugin extends Plugin
 		"................"
 	};
 
+	/**
+	 * With one hotkey for both overlays this moves them together (if either is showing, hide both;
+	 * otherwise show both). With separate hotkeys it toggles the looting bag overlay only.
+	 */
 	private final HotkeyListener hotkeyListener = new HotkeyListener(() -> config.toggleKeybind())
 	{
 		@Override
 		public void hotkeyPressed()
 		{
-			configManager.setConfiguration(LootingBagPlusConfig.GROUP, LootingBagPlusConfig.KEY_SHOW_OVERLAY, !config.showOverlay());
+			if (config.hotkeyMode() == HotkeyMode.SAME_HOTKEY)
+			{
+				boolean show = !(config.showOverlay() || config.showSeedBoxOverlay());
+				configManager.setConfiguration(LootingBagPlusConfig.GROUP, LootingBagPlusConfig.KEY_SHOW_OVERLAY, show);
+				configManager.setConfiguration(LootingBagPlusConfig.GROUP, LootingBagPlusConfig.KEY_SHOW_SEED_BOX, show);
+			}
+			else
+			{
+				configManager.setConfiguration(LootingBagPlusConfig.GROUP, LootingBagPlusConfig.KEY_SHOW_OVERLAY, !config.showOverlay());
+			}
 		}
 	};
 
-	private final HotkeyListener seedBoxHotkeyListener = new HotkeyListener(() -> config.seedBoxToggleKeybind())
+	/** Only bound in separate-hotkeys mode; otherwise it has no key and never fires. */
+	private final HotkeyListener seedBoxHotkeyListener = new HotkeyListener(
+		() -> config.hotkeyMode() == HotkeyMode.SEPARATE_HOTKEYS ? config.seedBoxToggleKeybind() : Keybind.NOT_SET)
 	{
 		@Override
 		public void hotkeyPressed()
@@ -197,6 +223,7 @@ public class LootingBagPlusPlugin extends Plugin
 		clientThread.invoke(() ->
 		{
 			windowController.startUp();
+			lootingBagTracker.startUp();
 			if (client.getGameState() == GameState.LOGGED_IN)
 			{
 				String profileKey = configManager.getRSProfileKey();
@@ -233,6 +260,8 @@ public class LootingBagPlusPlugin extends Plugin
 		{
 			state.flushNow();
 			seedBoxState.flushNow();
+			lootingBagTracker.shutDown();
+			seedBoxTracker.shutDown();
 			windowController.shutDown();
 		});
 	}
@@ -245,6 +274,31 @@ public class LootingBagPlusPlugin extends Plugin
 		windowController.tick();
 		state.tick();
 		seedBoxState.tick();
+	}
+
+	@Subscribe
+	public void onGameTick(GameTick event)
+	{
+		lootingBagTracker.onGameTick();
+		seedBoxTracker.onGameTick();
+	}
+
+	@Subscribe
+	public void onMenuOptionClicked(MenuOptionClicked event)
+	{
+		lootingBagTracker.onMenuOptionClicked(event);
+	}
+
+	@Subscribe
+	public void onItemDespawned(ItemDespawned event)
+	{
+		lootingBagTracker.onItemDespawned(event);
+	}
+
+	@Subscribe
+	public void onChatMessage(ChatMessage event)
+	{
+		seedBoxTracker.onChatMessage(event);
 	}
 
 	/** The precise "the grid was just rebuilt" signal: every firing wipes the positions we set. */
@@ -274,6 +328,10 @@ public class LootingBagPlusPlugin extends Plugin
 		{
 			seedBoxState.updateContents(SeedBoxState.contentsOf(event.getItemContainer()));
 		}
+		else if (event.getContainerId() == InventoryID.INV)
+		{
+			lootingBagTracker.onInventoryChanged(event.getItemContainer());
+		}
 	}
 
 	@Subscribe
@@ -282,6 +340,11 @@ public class LootingBagPlusPlugin extends Plugin
 		if (event.getGroupId() == InterfaceID.WILDERNESS_LOOTINGBAG)
 		{
 			windowController.markDirty();
+			lootingBagTracker.onViewOpened();
+		}
+		else if (event.getGroupId() == InterfaceID.HOSIDIUS_SEEDBOX)
+		{
+			seedBoxTracker.onViewOpened();
 		}
 	}
 
@@ -292,6 +355,11 @@ public class LootingBagPlusPlugin extends Plugin
 		{
 			// The widgets are going away, so any in-flight drag is meaningless.
 			windowController.cancelDrag();
+			lootingBagTracker.onViewClosed();
+		}
+		else if (event.getGroupId() == InterfaceID.HOSIDIUS_SEEDBOX)
+		{
+			seedBoxTracker.onViewClosed();
 		}
 	}
 
@@ -306,6 +374,7 @@ public class LootingBagPlusPlugin extends Plugin
 		{
 			state.flushNow();
 			seedBoxState.flushNow();
+			lootingBagTracker.onLoggedOut();
 		}
 	}
 

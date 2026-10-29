@@ -48,7 +48,7 @@ public class LootingBagPanel extends PluginPanel
 	private final JLabel slotsLabel = new JLabel();
 	private final JLabel valueLabel = new JLabel();
 	private final JPanel grid = new JPanel(new GridLayout(BagGeometry.ROWS, BagGeometry.COLS, 4, 4));
-	private final JCheckBox overlayToggle = new JCheckBox("Show floating overlay");
+	private final JCheckBox overlayToggle = new JCheckBox("Show looting bag overlay");
 
 	/**
 	 * @param onOverlayToggled called with the new state when the player ticks or unticks the

@@ -18,35 +18,33 @@ public interface LootingBagPlusConfig extends Config
 	String GROUP = "lootingbagplus";
 
 	/**
-	 * Read and written by the side panel's checkbox and the toggle hotkey as well as the config
-	 * panel, so all three controls always agree.
+	 * Read and written by the side panel's checkbox and the hotkeys as well as the config panel, so
+	 * every control always agrees.
 	 */
 	String KEY_SHOW_OVERLAY = "showOverlay";
+	String KEY_SHOW_SEED_BOX = "showSeedBoxOverlay";
 
 	/** Keys that change what the side panel displays. */
 	String KEY_SHOW_VALUE = "showValue";
 	String KEY_VALUE_TYPE = "valueType";
 
-	/** Switches the separate seed box overlay on and off. */
-	String KEY_SHOW_SEED_BOX = "showSeedBoxOverlay";
-
 	@ConfigSection(
-		name = "Floating overlay",
-		description = "The movable looting bag viewer drawn over the game",
+		name = "Floating overlays",
+		description = "The movable looting bag and seed box viewers drawn over the game",
 		position = 0
 	)
 	String overlaySection = "overlay";
 
 	@ConfigSection(
 		name = "Value",
-		description = "How values are worked out for the side panel and the overlay tooltip",
+		description = "How values are worked out for the side panel and the overlay tooltips",
 		position = 1
 	)
 	String valueSection = "value";
 
 	@ConfigItem(
 		keyName = KEY_SHOW_OVERLAY,
-		name = "Show overlay",
+		name = "Show looting bag overlay",
 		description = "Show the floating looting bag viewer. Hold Alt and drag it to move it.",
 		position = 0,
 		section = overlaySection
@@ -57,10 +55,34 @@ public interface LootingBagPlusConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = KEY_SHOW_SEED_BOX,
+		name = "Show seed box overlay",
+		description = "Show the floating seed box viewer. Hold Alt and drag it to move it.",
+		position = 1,
+		section = overlaySection
+	)
+	default boolean showSeedBoxOverlay()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "hotkeyMode",
+		name = "Hotkeys",
+		description = "One hotkey that shows and hides both overlays together, or a separate hotkey for each.",
+		position = 2,
+		section = overlaySection
+	)
+	default HotkeyMode hotkeyMode()
+	{
+		return HotkeyMode.SAME_HOTKEY;
+	}
+
+	@ConfigItem(
 		keyName = "toggleKeybind",
 		name = "Toggle keybind",
-		description = "Binds a key (combination) to show or hide the floating overlay.",
-		position = 1,
+		description = "With one hotkey for both: shows or hides both overlays. With separate hotkeys: shows or hides the looting bag overlay.",
+		position = 3,
 		section = overlaySection
 	)
 	default Keybind toggleKeybind()
@@ -69,10 +91,22 @@ public interface LootingBagPlusConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "seedBoxToggleKeybind",
+		name = "Seed box keybind",
+		description = "Shows or hides the seed box overlay. Only used with separate hotkeys.",
+		position = 4,
+		section = overlaySection
+	)
+	default Keybind seedBoxToggleKeybind()
+	{
+		return Keybind.NOT_SET;
+	}
+
+	@ConfigItem(
 		keyName = "hideWhenBagViewOpen",
 		name = "Hide while bag window is open",
-		description = "Hide the floating overlay while the game's own looting bag window is open.",
-		position = 2,
+		description = "Hide the floating looting bag overlay while the game's own looting bag window is open.",
+		position = 5,
 		section = overlaySection
 	)
 	default boolean hideWhenBagViewOpen()
@@ -83,8 +117,8 @@ public interface LootingBagPlusConfig extends Config
 	@ConfigItem(
 		keyName = "showItemLabels",
 		name = "Show herb and seed labels",
-		description = "Draw a short name (for example R for Ranarr, A for Avantoe) over each herb and seed in the overlays. Other items get no label.",
-		position = 3,
+		description = "Draw the Item Identification tag (for example R for Ranarr) over each herb and seed in the overlays. Other items get no label.",
+		position = 6,
 		section = overlaySection
 	)
 	default boolean showItemLabels()
@@ -93,10 +127,22 @@ public interface LootingBagPlusConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "labelStyle",
+		name = "Label style",
+		description = "Short (R, HAR) or medium (Ranarr, Harra) tags, as in the Item Identification plugin.",
+		position = 7,
+		section = overlaySection
+	)
+	default LabelStyle labelStyle()
+	{
+		return LabelStyle.SHORT;
+	}
+
+	@ConfigItem(
 		keyName = "showTooltip",
 		name = "Show hover tooltip",
 		description = "Show an item's full name, quantity and value when you hover over it in an overlay.",
-		position = 4,
+		position = 8,
 		section = overlaySection
 	)
 	default boolean showTooltip()
@@ -126,36 +172,5 @@ public interface LootingBagPlusConfig extends Config
 	default PriceType valueType()
 	{
 		return PriceType.GRAND_EXCHANGE;
-	}
-
-	@ConfigSection(
-		name = "Seed box overlay",
-		description = "A separate movable viewer for your seed box",
-		position = 2
-	)
-	String seedBoxSection = "seedBox";
-
-	@ConfigItem(
-		keyName = KEY_SHOW_SEED_BOX,
-		name = "Show seed box overlay",
-		description = "Show a floating viewer for your seed box. Open or check the seed box once to sync it. Hold Alt and drag it to move it.",
-		position = 0,
-		section = seedBoxSection
-	)
-	default boolean showSeedBoxOverlay()
-	{
-		return false;
-	}
-
-	@ConfigItem(
-		keyName = "seedBoxToggleKeybind",
-		name = "Toggle keybind",
-		description = "Binds a key (combination) to show or hide the seed box overlay.",
-		position = 1,
-		section = seedBoxSection
-	)
-	default Keybind seedBoxToggleKeybind()
-	{
-		return Keybind.NOT_SET;
 	}
 }

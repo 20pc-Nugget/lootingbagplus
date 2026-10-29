@@ -82,6 +82,68 @@ public final class BagContents
 	}
 
 	/**
+	 * Returns a copy with {@code quantity} of an item added, the way the looting bag holds them: a
+	 * stackable item joins its existing stack (or takes the first free slot), while each copy of an
+	 * unstackable item takes a slot of its own. Whatever does not fit in the 28 slots is dropped.
+	 * Used to keep the picture live between checks; a real check always replaces it.
+	 */
+	public BagContents withAdded(int itemId, int quantity, boolean stackable)
+	{
+		if (itemId <= 0 || quantity <= 0)
+		{
+			return this;
+		}
+
+		BagContents copy = new BagContents();
+		System.arraycopy(ids, 0, copy.ids, 0, SLOTS);
+		System.arraycopy(quantities, 0, copy.quantities, 0, SLOTS);
+
+		if (stackable)
+		{
+			for (int i = 0; i < SLOTS; i++)
+			{
+				if (copy.ids[i] == itemId)
+				{
+					copy.quantities[i] = (int) Math.min((long) copy.quantities[i] + quantity, Integer.MAX_VALUE);
+					return copy;
+				}
+			}
+
+			int free = copy.firstFree();
+			if (free >= 0)
+			{
+				copy.ids[free] = itemId;
+				copy.quantities[free] = quantity;
+			}
+			return copy;
+		}
+
+		for (int n = 0; n < quantity; n++)
+		{
+			int free = copy.firstFree();
+			if (free < 0)
+			{
+				break;
+			}
+			copy.ids[free] = itemId;
+			copy.quantities[free] = 1;
+		}
+		return copy;
+	}
+
+	private int firstFree()
+	{
+		for (int i = 0; i < SLOTS; i++)
+		{
+			if (ids[i] <= 0)
+			{
+				return i;
+			}
+		}
+		return -1;
+	}
+
+	/**
 	 * Text form for config: {@code index:id:quantity} triples separated by commas, or the literal
 	 * {@code empty} for a bag that is known to be empty.
 	 */

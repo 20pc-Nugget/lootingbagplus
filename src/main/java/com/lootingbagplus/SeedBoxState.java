@@ -113,7 +113,7 @@ public class SeedBoxState
 	/** Client thread. Records what the game says the seed box now holds. */
 	public void updateContents(StoredItems newContents)
 	{
-		log.debug("Seed box container received: {} item types", newContents.size());
+		log.debug("Seed box contents now {} item types", newContents.size());
 		if (newContents.equals(contents))
 		{
 			return;
@@ -122,6 +122,27 @@ public class SeedBoxState
 		contents = newContents;
 		dirty = true;
 		rebuild();
+	}
+
+	/**
+	 * Client thread. Adds seeds the player has just stored, so the picture stays live between
+	 * syncs. Ignored until the box has been seen once; the next real container update replaces it.
+	 */
+	public void addItem(int itemId, int quantity)
+	{
+		if (contents != null)
+		{
+			updateContents(contents.withAdded(itemId, quantity));
+		}
+	}
+
+	/** Client thread. Takes seeds out after the game reports them leaving the box. */
+	public void removeItem(int itemId, int quantity)
+	{
+		if (contents != null)
+		{
+			updateContents(contents.withRemoved(itemId, quantity));
+		}
 	}
 
 	/** Client thread, once per frame. Writes pending changes and keeps prices current. */
@@ -187,7 +208,9 @@ public class SeedBoxState
 			long gePrice = itemManager.getItemPrice(id);
 			long haPrice = id == ItemID.COINS ? 1 : base.getHaPrice();
 
-			views.add(new SlotView(id, quantity, composition.getName(), composition.isStackable(), gePrice, haPrice));
+			ItemTag tag = ItemTag.get(itemManager.canonicalize(id));
+			views.add(new SlotView(id, quantity, composition.getName(), composition.isStackable(), gePrice, haPrice,
+				tag == null ? null : tag.getShortName(), tag == null ? null : tag.getMediumName()));
 			geValue += gePrice * quantity;
 			haValue += haPrice * quantity;
 		}

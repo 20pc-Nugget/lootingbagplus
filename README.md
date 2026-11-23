@@ -1,5 +1,8 @@
 # Looting Bag Plus
 
+Display your looting bag and or seed box contents in an overlay with a hotkey to 1 press toggle.
+No more having to stop moving or doing what you're doing to view contents.
+
 A RuneLite plugin that combines three things:
 
 - **Organizer**: drag items around inside the looting bag's Check window and they stay where you

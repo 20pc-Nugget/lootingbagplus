@@ -41,10 +41,6 @@ import net.runelite.client.game.ItemManager;
 @Singleton
 public class SeedBoxTracker
 {
-	/** Seed box (13639) and open seed box (24481). */
-	private static final int SEED_BOX = 13639;
-	private static final int SEED_BOX_OPEN = 24481;
-
 	private final Client client;
 	private final ItemManager itemManager;
 	private final SeedBoxState state;
@@ -109,7 +105,7 @@ public class SeedBoxTracker
 		{
 			for (Item item : inventory.getItems())
 			{
-				if (item.getId() == SEED_BOX || item.getId() == SEED_BOX_OPEN)
+				if (item.getId() == ItemID.SEED_BOX || item.getId() == ItemID.SEED_BOX_OPEN)
 				{
 					carried = true;
 					break;

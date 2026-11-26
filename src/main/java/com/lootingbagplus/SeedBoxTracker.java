@@ -17,6 +17,7 @@ import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
+import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.gameval.InterfaceID;
@@ -40,6 +41,10 @@ import net.runelite.client.game.ItemManager;
 @Singleton
 public class SeedBoxTracker
 {
+	/** Seed box (13639) and open seed box (24481). */
+	private static final int SEED_BOX = 13639;
+	private static final int SEED_BOX_OPEN = 24481;
+
 	private final Client client;
 	private final ItemManager itemManager;
 	private final SeedBoxState state;
@@ -50,6 +55,12 @@ public class SeedBoxTracker
 	/** Tick the seed box window opened, so its contents can be read once they have loaded. */
 	private int viewedTick = -1;
 
+	/**
+	 * Tick the game last sent the real seed box contents. Those already include any seeds the chat
+	 * messages announce, so a message from the same tick must not be added on top of them.
+	 */
+	private int containerUpdateTick = -1;
+
 	@Inject
 	public SeedBoxTracker(Client client, ItemManager itemManager, SeedBoxState state)
 	{
@@ -58,10 +69,54 @@ public class SeedBoxTracker
 		this.state = state;
 	}
 
+	/** Client thread. Works out whether a seed box is already in the inventory. */
+	public void startUp()
+	{
+		updateCarried(client.getItemContainer(InventoryID.INV));
+	}
+
 	/** Client thread. */
 	public void shutDown()
 	{
 		viewedTick = -1;
+		containerUpdateTick = -1;
+	}
+
+	/** Client thread. Tick counts restart on login, and nothing is carried at the login screen. */
+	public void onLoggedOut()
+	{
+		viewedTick = -1;
+		containerUpdateTick = -1;
+		state.setCarried(false);
+	}
+
+	/** Client thread, when the inventory container changes. */
+	public void onInventoryChanged(ItemContainer inventory)
+	{
+		updateCarried(inventory);
+	}
+
+	/** Client thread, when the game sends the real seed box contents. */
+	public void onContainerUpdated()
+	{
+		containerUpdateTick = client.getTickCount();
+	}
+
+	private void updateCarried(ItemContainer inventory)
+	{
+		boolean carried = false;
+		if (inventory != null)
+		{
+			for (Item item : inventory.getItems())
+			{
+				if (item.getId() == SEED_BOX || item.getId() == SEED_BOX_OPEN)
+				{
+					carried = true;
+					break;
+				}
+			}
+		}
+		state.setCarried(carried);
 	}
 
 	/** Client thread, for every chat message. */
@@ -82,6 +137,13 @@ public class SeedBoxTracker
 		if (itemId == null)
 		{
 			log.debug("Seed box message for an unknown seed: {}", change.getSeedName());
+			return;
+		}
+
+		// The real container update for this change already holds the new total.
+		if (containerUpdateTick == client.getTickCount())
+		{
+			log.debug("Ignoring seed box message already covered by the container update");
 			return;
 		}
 

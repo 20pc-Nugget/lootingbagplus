@@ -77,6 +77,16 @@ public class LootingBagTracker
 	/** An item clicked on the ground while the bag is open, waiting to see where it ends up. */
 	private PendingPickup pendingPickup;
 
+	/**
+	 * Tick the game last sent the real bag contents. A real update already includes whatever the
+	 * player just deposited or picked up, so a change seen at or after that tick must not be added
+	 * on top of it (that is what doubled the counts).
+	 */
+	private int containerUpdateTick = -1;
+
+	/** Tick the bank's "Deposit loot" button was pressed, so the bag can be shown empty. */
+	private int bankEmptyTick = -1;
+
 	@Inject
 	public LootingBagTracker(Client client, ItemManager itemManager, BagState state)
 	{
@@ -89,6 +99,8 @@ public class LootingBagTracker
 	public void startUp()
 	{
 		lastInventory = countItems(client.getItemContainer(InventoryID.INV));
+		state.setCarried(hasBag(lastInventory));
+		containerUpdateTick = -1;
 		clearPending();
 	}
 
@@ -96,6 +108,7 @@ public class LootingBagTracker
 	public void shutDown()
 	{
 		lastInventory = new HashMap<>();
+		containerUpdateTick = -1;
 		clearPending();
 	}
 
@@ -103,13 +116,26 @@ public class LootingBagTracker
 	public void onLoggedOut()
 	{
 		lastInventory = new HashMap<>();
+		containerUpdateTick = -1;
 		clearPending();
+		state.setCarried(false);
+	}
+
+	/** Client thread, when the game sends the real bag contents. */
+	public void onBagContainerUpdated()
+	{
+		containerUpdateTick = client.getTickCount();
 	}
 
 	/** Client thread, when the inventory container changes. */
 	public void onInventoryChanged(ItemContainer inventory)
 	{
 		Map<Integer, Integer> now = countItems(inventory);
+		int tick = client.getTickCount();
+
+		// Only a bag on the player is ever shown; this also hides it the moment it is dropped,
+		// banked or lost.
+		state.setCarried(hasBag(now));
 
 		if (pendingUseItemId != -1)
 		{
@@ -117,7 +143,7 @@ public class LootingBagTracker
 			if (removed > 0)
 			{
 				log.debug("Deposited {} x {} by using it on the bag", removed, pendingUseItemId);
-				addToBag(pendingUseItemId, removed);
+				addToBag(pendingUseItemId, removed, pendingUseTick);
 				pendingUseItemId = -1;
 			}
 		}
@@ -129,7 +155,7 @@ public class LootingBagTracker
 				if (removed > 0 && !isLootingBag(entry.getKey()))
 				{
 					log.debug("Deposited {} x {} through the Add to bag window", removed, entry.getKey());
-					addToBag(entry.getKey(), removed);
+					addToBag(entry.getKey(), removed, tick);
 				}
 			}
 		}
@@ -157,6 +183,13 @@ public class LootingBagTracker
 		// Picking an amount in the "How many?" dialog continues the deposit.
 		if (action == MenuAction.WIDGET_CONTINUE)
 		{
+			return;
+		}
+
+		// The bank's "Deposit loot" button empties the bag, and the game sends nothing for that.
+		if ("Deposit loot".equals(event.getMenuOption()) && hasBag(lastInventory))
+		{
+			bankEmptyTick = client.getTickCount();
 			return;
 		}
 
@@ -245,6 +278,17 @@ public class LootingBagTracker
 			}
 		}
 
+		// Give the bank a tick to take the loot, then show the bag as empty.
+		if (bankEmptyTick != -1 && tick > bankEmptyTick)
+		{
+			bankEmptyTick = -1;
+			if (hasBag(lastInventory))
+			{
+				log.debug("Bag emptied through the bank's Deposit loot button");
+				state.updateContents(BagContents.empty());
+			}
+		}
+
 		if (pendingUseItemId != -1 && tick - pendingUseTick > USE_TIMEOUT_TICKS)
 		{
 			pendingUseItemId = -1;
@@ -273,14 +317,24 @@ public class LootingBagTracker
 			if (gained <= 0 && isBagOpen())
 			{
 				log.debug("Picked up {} x {} into the bag", pickup.quantity, pickup.itemId);
-				addToBag(pickup.itemId, pickup.quantity);
+				addToBag(pickup.itemId, pickup.quantity, pickup.despawnTick);
 			}
 			pendingPickup = null;
 		}
 	}
 
-	private void addToBag(int itemId, int quantity)
+	/**
+	 * @param sinceTick the tick the deposit or pickup began; a real container update at or after it
+	 *                  already counts the items, so adding them again would double them
+	 */
+	private void addToBag(int itemId, int quantity, int sinceTick)
 	{
+		if (containerUpdateTick >= sinceTick)
+		{
+			log.debug("Skipping {} x {}: the game's own update already includes it", quantity, itemId);
+			return;
+		}
+
 		state.addItem(itemId, quantity, itemManager.getItemComposition(itemId).isStackable());
 	}
 
@@ -301,6 +355,12 @@ public class LootingBagTracker
 		pendingUseItemId = -1;
 		pendingPickup = null;
 		viewedTick = -1;
+		bankEmptyTick = -1;
+	}
+
+	private static boolean hasBag(Map<Integer, Integer> inventory)
+	{
+		return inventory.containsKey(ItemID.LOOTING_BAG) || inventory.containsKey(ItemID.LOOTING_BAG_OPEN);
 	}
 
 	private static boolean isLootingBag(int itemId)

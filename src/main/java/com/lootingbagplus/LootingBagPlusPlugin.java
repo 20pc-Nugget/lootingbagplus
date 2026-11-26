@@ -60,9 +60,9 @@ import net.runelite.client.util.HotkeyListener;
  */
 @Slf4j
 @PluginDescriptor(
-	name = "Looting Bag Plus",
-	description = "Arrange your looting bag by dragging items, and view it in a side panel or a floating overlay",
-	tags = {"looting bag", "uim", "ultimate ironman", "inventory", "organize", "layout", "overlay", "panel", "viewer"}
+	name = "Pockets",
+	description = "Displays a hotkey toggleable overlay for your looting bag and or seed box that doesn't interrupt in-game actions to view.",
+	tags = {"looting bag", "seed box", "uim", "ultimate ironman", "inventory", "overlay", "hotkey", "panel", "viewer"}
 )
 public class LootingBagPlusPlugin extends Plugin
 {
@@ -199,7 +199,7 @@ public class LootingBagPlusPlugin extends Plugin
 
 		BufferedImage icon = createIcon();
 		navButton = NavigationButton.builder()
-			.tooltip("Looting Bag")
+			.tooltip("Pockets")
 			.icon(icon)
 			.priority(8)
 			.panel(panel)
@@ -224,6 +224,7 @@ public class LootingBagPlusPlugin extends Plugin
 		{
 			windowController.startUp();
 			lootingBagTracker.startUp();
+			seedBoxTracker.startUp();
 			if (client.getGameState() == GameState.LOGGED_IN)
 			{
 				String profileKey = configManager.getRSProfileKey();
@@ -321,16 +322,19 @@ public class LootingBagPlusPlugin extends Plugin
 	{
 		if (event.getContainerId() == InventoryID.LOOTING_BAG)
 		{
+			lootingBagTracker.onBagContainerUpdated();
 			state.updateContents(BagState.contentsOf(event.getItemContainer()));
 			windowController.markDirty();
 		}
 		else if (event.getContainerId() == InventoryID.SEED_BOX)
 		{
+			seedBoxTracker.onContainerUpdated();
 			seedBoxState.updateContents(SeedBoxState.contentsOf(event.getItemContainer()));
 		}
 		else if (event.getContainerId() == InventoryID.INV)
 		{
 			lootingBagTracker.onInventoryChanged(event.getItemContainer());
+			seedBoxTracker.onInventoryChanged(event.getItemContainer());
 		}
 	}
 
@@ -375,6 +379,7 @@ public class LootingBagPlusPlugin extends Plugin
 			state.flushNow();
 			seedBoxState.flushNow();
 			lootingBagTracker.onLoggedOut();
+			seedBoxTracker.onLoggedOut();
 		}
 	}
 

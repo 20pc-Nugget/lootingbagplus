@@ -67,6 +67,12 @@ public class BagState
 	private long lastPriceRefreshMs;
 
 	private volatile BagSnapshot snapshot = BagSnapshot.UNKNOWN;
+
+	/**
+	 * Whether a looting bag is in the player's inventory right now. The remembered contents are
+	 * only ever shown while this is true, so nothing is displayed for a bag you do not have on you.
+	 */
+	private volatile boolean carried;
 	private volatile Consumer<BagSnapshot> listener = s ->
 	{
 	};
@@ -89,10 +95,28 @@ public class BagState
 		} : listener;
 	}
 
-	/** Any thread. */
+	/** Any thread. {@link BagSnapshot#UNKNOWN} whenever no looting bag is on the player. */
 	public BagSnapshot getSnapshot()
 	{
-		return snapshot;
+		return carried ? snapshot : BagSnapshot.UNKNOWN;
+	}
+
+	/** Any thread. True while a looting bag is in the player's inventory. */
+	public boolean isCarried()
+	{
+		return carried;
+	}
+
+	/** Client thread. Called whenever the inventory changes, and on login and logout. */
+	public void setCarried(boolean value)
+	{
+		if (carried == value)
+		{
+			return;
+		}
+
+		carried = value;
+		listener.accept(getSnapshot());
 	}
 
 	/** Client thread. {@code null} until the bag has been seen on this character. */
@@ -307,7 +331,7 @@ public class BagState
 	private void publish(BagSnapshot newSnapshot)
 	{
 		snapshot = newSnapshot;
-		listener.accept(newSnapshot);
+		listener.accept(getSnapshot());
 	}
 
 	private BagSnapshot buildSnapshot()

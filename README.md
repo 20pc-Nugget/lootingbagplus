@@ -1,4 +1,4 @@
-# Looting Bag Plus
+# Pockets
 
 Display your looting bag and or seed box contents in an overlay with a hotkey to 1 press toggle.
 No more having to stop moving or doing what you're doing to view contents.

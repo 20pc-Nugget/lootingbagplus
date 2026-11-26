@@ -52,6 +52,9 @@ public class SeedBoxState
 
 	private volatile StoredItemsSnapshot snapshot = StoredItemsSnapshot.UNKNOWN;
 
+	/** Whether a seed box is in the player's inventory right now. Nothing is shown when not. */
+	private volatile boolean carried;
+
 	@Inject
 	public SeedBoxState(ItemManager itemManager, ConfigManager configManager)
 	{
@@ -59,10 +62,22 @@ public class SeedBoxState
 		this.configManager = configManager;
 	}
 
-	/** Any thread. */
+	/** Any thread. {@link StoredItemsSnapshot#UNKNOWN} whenever no seed box is on the player. */
 	public StoredItemsSnapshot getSnapshot()
 	{
-		return snapshot;
+		return carried ? snapshot : StoredItemsSnapshot.UNKNOWN;
+	}
+
+	/** Any thread. True while a seed box is in the player's inventory. */
+	public boolean isCarried()
+	{
+		return carried;
+	}
+
+	/** Client thread. Called whenever the inventory changes, and on login and logout. */
+	public void setCarried(boolean value)
+	{
+		carried = value;
 	}
 
 	/** Converts the game's seed box container into our own pure value type. */

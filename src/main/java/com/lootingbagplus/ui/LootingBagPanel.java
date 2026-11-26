@@ -114,7 +114,7 @@ public class LootingBagPanel extends PluginPanel
 		}
 		else
 		{
-			slotsLabel.setText("Not synced yet - check your bag");
+			slotsLabel.setText("No looting bag on you, or not checked yet");
 		}
 
 		valueLabel.setVisible(showValue && snapshot.isKnown());

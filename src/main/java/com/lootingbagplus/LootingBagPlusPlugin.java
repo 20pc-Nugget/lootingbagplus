@@ -18,6 +18,7 @@ import java.awt.image.BufferedImage;
 import javax.inject.Inject;
 import javax.swing.SwingUtilities;
 import lombok.extern.slf4j.Slf4j;
+import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
 import net.runelite.api.events.ChatMessage;
@@ -33,6 +34,10 @@ import net.runelite.api.events.WidgetLoaded;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.gameval.InventoryID;
 import net.runelite.client.callback.ClientThread;
+import net.runelite.client.chat.ChatColorType;
+import net.runelite.client.chat.ChatMessageBuilder;
+import net.runelite.client.chat.ChatMessageManager;
+import net.runelite.client.chat.QueuedMessage;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.config.Keybind;
 import net.runelite.client.eventbus.Subscribe;
@@ -72,6 +77,13 @@ public class LootingBagPlusPlugin extends Plugin
 	 */
 	private static final int SCRIPT_LOOTING_BAG_BUILD_ITEMS = 497;
 
+	/** Hidden flag (no config item) recording that the one-time rename notice has been shown. */
+	private static final String KEY_RENAME_NOTICE_SHOWN = "renameNoticeShown";
+
+	private static final String RENAME_NOTICE = "Looting Bag Plus plugin is now called Pockets, due to the fact "
+		+ "that it supports looting bag and seed box, it felt more suiting.  Changed plugin to not display "
+		+ "anything if there is no looting bag or seed box present.";
+
 	@Inject
 	private Client client;
 
@@ -86,6 +98,9 @@ public class LootingBagPlusPlugin extends Plugin
 
 	@Inject
 	private ClientToolbar clientToolbar;
+
+	@Inject
+	private ChatMessageManager chatMessageManager;
 
 	@Inject
 	private OverlayManager overlayManager;
@@ -131,6 +146,9 @@ public class LootingBagPlusPlugin extends Plugin
 
 	/** {@code MouseManager.registerMouseListener} does not de-duplicate, so this guards it. */
 	private boolean inputRegistered;
+
+	/** True from login until the one-time rename notice has been sent. */
+	private boolean renameNoticePending;
 
 	/** A 16x16 sack, drawn in code so the plugin needs no image resource. */
 	private static final String[] ICON_ART = {
@@ -220,6 +238,9 @@ public class LootingBagPlusPlugin extends Plugin
 			inputRegistered = true;
 		}
 
+		renameNoticePending = !Boolean.TRUE.equals(
+			configManager.getConfiguration(LootingBagPlusConfig.GROUP, KEY_RENAME_NOTICE_SHOWN, Boolean.class));
+
 		clientThread.invoke(() ->
 		{
 			windowController.startUp();
@@ -280,6 +301,21 @@ public class LootingBagPlusPlugin extends Plugin
 	@Subscribe
 	public void onGameTick(GameTick event)
 	{
+		if (renameNoticePending && client.getGameState() == GameState.LOGGED_IN)
+		{
+			renameNoticePending = false;
+			chatMessageManager.queue(QueuedMessage.builder()
+				.type(ChatMessageType.GAMEMESSAGE)
+				.runeLiteFormattedMessage(new ChatMessageBuilder()
+					.append(ChatColorType.HIGHLIGHT)
+					.append("Pockets: ")
+					.append(ChatColorType.NORMAL)
+					.append(RENAME_NOTICE)
+					.build())
+				.build());
+			configManager.setConfiguration(LootingBagPlusConfig.GROUP, KEY_RENAME_NOTICE_SHOWN, true);
+		}
+
 		lootingBagTracker.onGameTick();
 		seedBoxTracker.onGameTick();
 	}

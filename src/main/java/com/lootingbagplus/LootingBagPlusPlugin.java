@@ -21,6 +21,7 @@ import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
+import net.runelite.api.events.ActorDeath;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.ClientTick;
 import net.runelite.api.events.GameStateChanged;
@@ -29,6 +30,7 @@ import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.events.ItemDespawned;
 import net.runelite.api.events.MenuOptionClicked;
 import net.runelite.api.events.ScriptPostFired;
+import net.runelite.api.events.StatChanged;
 import net.runelite.api.events.WidgetClosed;
 import net.runelite.api.events.WidgetLoaded;
 import net.runelite.api.gameval.InterfaceID;
@@ -324,12 +326,26 @@ public class LootingBagPlusPlugin extends Plugin
 	public void onMenuOptionClicked(MenuOptionClicked event)
 	{
 		lootingBagTracker.onMenuOptionClicked(event);
+		seedBoxTracker.onMenuOptionClicked(event);
+	}
+
+	@Subscribe
+	public void onStatChanged(StatChanged event)
+	{
+		seedBoxTracker.onStatChanged(event);
+	}
+
+	@Subscribe
+	public void onActorDeath(ActorDeath event)
+	{
+		lootingBagTracker.onActorDeath(event);
 	}
 
 	@Subscribe
 	public void onItemDespawned(ItemDespawned event)
 	{
 		lootingBagTracker.onItemDespawned(event);
+		seedBoxTracker.onItemDespawned(event);
 	}
 
 	@Subscribe

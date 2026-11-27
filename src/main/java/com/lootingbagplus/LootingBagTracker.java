@@ -23,6 +23,7 @@ import net.runelite.api.MenuAction;
 import net.runelite.api.Player;
 import net.runelite.api.WorldView;
 import net.runelite.api.coords.WorldPoint;
+import net.runelite.api.events.ActorDeath;
 import net.runelite.api.events.ItemDespawned;
 import net.runelite.api.events.MenuOptionClicked;
 import net.runelite.api.gameval.InterfaceID;
@@ -163,6 +164,23 @@ public class LootingBagTracker
 		lastInventory = now;
 	}
 
+	/**
+	 * Client thread. A looting bag is always lost on death, contents and all (they go to the
+	 * gravestone), so the next bag the player gets is empty.
+	 */
+	public void onActorDeath(ActorDeath event)
+	{
+		if (event.getActor() != client.getLocalPlayer() || !hasBag(lastInventory))
+		{
+			return;
+		}
+
+		log.debug("Died with a looting bag: the bag and its contents are lost");
+		pendingUseItemId = -1;
+		pendingPickup = null;
+		state.updateContents(BagContents.empty());
+	}
+
 	/** Client thread, when the looting bag window loads. */
 	public void onViewOpened()
 	{
@@ -187,7 +205,8 @@ public class LootingBagTracker
 		}
 
 		// The bank's "Deposit loot" button empties the bag, and the game sends nothing for that.
-		if ("Deposit loot".equals(event.getMenuOption()) && hasBag(lastInventory))
+		String option = event.getMenuOption();
+		if (option != null && option.toLowerCase(Locale.ROOT).contains("deposit loot") && hasBag(lastInventory))
 		{
 			bankEmptyTick = client.getTickCount();
 			return;

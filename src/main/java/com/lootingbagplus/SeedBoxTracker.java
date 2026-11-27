@@ -23,6 +23,7 @@ import net.runelite.api.GameState;
 import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
 import net.runelite.api.MenuAction;
+import net.runelite.api.ObjectComposition;
 import net.runelite.api.Player;
 import net.runelite.api.Skill;
 import net.runelite.api.WorldView;
@@ -50,6 +51,8 @@ import net.runelite.client.game.ItemManager;
  *   <li>a seed planted on a patch: the game uses the box's seeds first and keeps the one in the
  *   inventory, so whatever the patch needed beyond what left the inventory came out of the box
  *   (the planting is recognised by the Farming experience it gives);</li>
+ *   <li>the box used directly on a patch: it plants the first seed of that patch's type, in the
+ *   box's own order, so that seed is the one taken.</li>
  *   <li>the real contents, read whenever the window is open (an empty box included).</li>
  * </ul>
  * The game's chat messages are only a fallback for changes none of the above saw. A real container
@@ -211,15 +214,24 @@ public class SeedBoxTracker
 			pendingPlant = null;
 		}
 
-		// A seed used on an object (a patch). Using the seed box itself on a patch plants the first
-		// seed of that patch's type, which cannot be told from here, so only seeds are followed.
+		// A seed, or the seed box itself, used on an object (a patch).
 		if (action == MenuAction.WIDGET_TARGET_ON_GAME_OBJECT)
 		{
 			Widget selected = client.getSelectedWidget();
 			int selectedId = selected == null ? -1 : selected.getItemId();
 			if (seedItemIds().contains(selectedId))
 			{
-				pendingPlant = new PendingPlant(selectedId, tick, lastInventory.getOrDefault(selectedId, 0));
+				pendingPlant = new PendingPlant(selectedId, null, tick, lastInventory.getOrDefault(selectedId, 0));
+			}
+			else if (isSeedBox(selectedId))
+			{
+				// The box plants the first seed of the patch's type; which one is worked out once
+				// the planting happens.
+				PatchKind kind = patchKind(event.getId());
+				if (kind != null)
+				{
+					pendingPlant = new PendingPlant(-1, kind, tick, 0);
+				}
 			}
 			return;
 		}
@@ -461,15 +473,162 @@ public class SeedBoxTracker
 		// patch needed beyond what left the inventory came out of the box.
 		if (tick > plant.plantedTick)
 		{
-			int fromInventory = Math.max(0, plant.inventoryBefore - lastInventory.getOrDefault(plant.itemId, 0));
-			int fromBox = seedsRequired(plant.itemId) - fromInventory;
-			if (fromBox > 0 && containerUpdateTick < plant.plantedTick)
+			int itemId = plant.itemId;
+			int fromInventory = 0;
+			if (itemId == -1)
 			{
-				log.debug("Planted {}: {} came out of the seed box", plant.itemId, fromBox);
-				state.removeItem(plant.itemId, fromBox);
+				// The box was used on the patch: it planted the first seed of that type it holds
+				// enough of, in its own order.
+				final PatchKind kind = plant.kind;
+				itemId = state.firstItemMatching((id, quantity) -> kindOf(id) == kind && quantity >= seedsRequired(id));
+			}
+			else
+			{
+				fromInventory = Math.max(0, plant.inventoryBefore - lastInventory.getOrDefault(itemId, 0));
+			}
+
+			if (itemId != -1)
+			{
+				int fromBox = seedsRequired(itemId) - fromInventory;
+				if (fromBox > 0 && containerUpdateTick < plant.plantedTick)
+				{
+					log.debug("Planted {}: {} came out of the seed box", itemId, fromBox);
+					state.removeItem(itemId, fromBox);
+				}
 			}
 			lastChangeTick = tick;
 			pendingPlant = null;
+		}
+	}
+
+	private enum PatchKind
+	{
+		HERB,
+		ALLOTMENT,
+		FLOWER,
+		HOPS,
+		BUSH
+	}
+
+	/** The kind of patch an object is, from its name (or the name of what it currently shows as). */
+	private PatchKind patchKind(int objectId)
+	{
+		ObjectComposition definition = client.getObjectDefinition(objectId);
+		if (definition == null)
+		{
+			return null;
+		}
+
+		String name = definition.getName();
+		PatchKind kind = patchKindOfName(name);
+		if (kind == null && definition.getImpostorIds() != null)
+		{
+			ObjectComposition impostor = definition.getImpostor();
+			if (impostor != null)
+			{
+				name = impostor.getName();
+				kind = patchKindOfName(name);
+			}
+		}
+
+		log.debug("Seed box used on '{}': patch kind {}", name, kind);
+		return kind;
+	}
+
+	private static PatchKind patchKindOfName(String name)
+	{
+		if (name == null)
+		{
+			return null;
+		}
+
+		String lower = name.toLowerCase(Locale.ROOT);
+		if (lower.contains("herb"))
+		{
+			return PatchKind.HERB;
+		}
+		if (lower.contains("allotment"))
+		{
+			return PatchKind.ALLOTMENT;
+		}
+		if (lower.contains("flower"))
+		{
+			return PatchKind.FLOWER;
+		}
+		if (lower.contains("hops"))
+		{
+			return PatchKind.HOPS;
+		}
+		if (lower.contains("bush"))
+		{
+			return PatchKind.BUSH;
+		}
+		return null;
+	}
+
+	/** Which kind of patch a seed is planted in, or {@code null} if it is not auto-planted. */
+	private static PatchKind kindOf(int itemId)
+	{
+		ItemTag tag = ItemTag.get(itemId);
+		if (tag == null)
+		{
+			return null;
+		}
+
+		switch (tag.name())
+		{
+			case "GUAM_SEED":
+			case "MARRENTILL_SEED":
+			case "TARROMIN_SEED":
+			case "HARRALANDER_SEED":
+			case "RANARR_SEED":
+			case "TOADFLAX_SEED":
+			case "IRIT_SEED":
+			case "AVANTOE_SEED":
+			case "KWUARM_SEED":
+			case "SNAPDRAGON_SEED":
+			case "CADANTINE_SEED":
+			case "LANTADYME_SEED":
+			case "DWARF_WEED_SEED":
+			case "TORSTOL_SEED":
+			case "HUASCA_SEED":
+				return PatchKind.HERB;
+			case "POTATO_SEED":
+			case "ONION_SEED":
+			case "CABBAGE_SEED":
+			case "TOMATO_SEED":
+			case "SWEETCORN_SEED":
+			case "STRAWBERRY_SEED":
+			case "WATERMELON_SEED":
+			case "SNAPE_GRASS_SEED":
+			case "FLAX_SEED":
+				return PatchKind.ALLOTMENT;
+			case "MARIGOLD_SEED":
+			case "ROSEMARY_SEED":
+			case "NASTURTIUM_SEED":
+			case "WOAD_SEED":
+			case "LIMPWURT_SEED":
+			case "WHITE_LILY_SEED":
+				return PatchKind.FLOWER;
+			case "BARLEY_SEED":
+			case "HAMMERSTONE_SEED":
+			case "ASGARNIAN_SEED":
+			case "YANILLIAN_SEED":
+			case "KRANDORIAN_SEED":
+			case "WILDBLOOD_SEED":
+			case "JUTE_SEED":
+			case "HEMP_SEED":
+			case "COTTON_SEED":
+				return PatchKind.HOPS;
+			case "REDBERRY_SEED":
+			case "CADAVABERRY_SEED":
+			case "DWELLBERRY_SEED":
+			case "JANGERBERRY_SEED":
+			case "WHITEBERRY_SEED":
+			case "POISON_IVY_SEED":
+				return PatchKind.BUSH;
+			default:
+				return null;
 		}
 	}
 
@@ -635,14 +794,17 @@ public class SeedBoxTracker
 
 	private static final class PendingPlant
 	{
+		/** The seed used, or -1 when the seed box itself was used on the patch. */
 		private final int itemId;
+		private final PatchKind kind;
 		private final int clickTick;
 		private final int inventoryBefore;
 		private int plantedTick = -1;
 
-		PendingPlant(int itemId, int clickTick, int inventoryBefore)
+		PendingPlant(int itemId, PatchKind kind, int clickTick, int inventoryBefore)
 		{
 			this.itemId = itemId;
+			this.kind = kind;
 			this.clickTick = clickTick;
 			this.inventoryBefore = inventoryBefore;
 		}

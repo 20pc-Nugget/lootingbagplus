@@ -12,6 +12,7 @@ import com.lootingbagplus.model.StoredItemsSnapshot;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.BiPredicate;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
@@ -149,6 +150,29 @@ public class SeedBoxState
 		{
 			updateContents(contents.withAdded(itemId, quantity));
 		}
+	}
+
+	/**
+	 * Client thread. The first item in the box's own order that the matcher accepts (given its id
+	 * and the quantity held), or -1 if there is none or the box has not been seen yet.
+	 */
+	public int firstItemMatching(BiPredicate<Integer, Integer> matcher)
+	{
+		if (contents == null)
+		{
+			return -1;
+		}
+
+		for (int i = 0; i < contents.size(); i++)
+		{
+			int id = contents.idAt(i);
+			int quantity = contents.quantityAt(i);
+			if (id > 0 && quantity > 0 && matcher.test(id, quantity))
+			{
+				return id;
+			}
+		}
+		return -1;
 	}
 
 	/** Client thread. Takes seeds out after the game reports them leaving the box. */
